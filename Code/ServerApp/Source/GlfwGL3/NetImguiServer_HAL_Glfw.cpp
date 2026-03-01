@@ -4,6 +4,14 @@
 
 #include <Private/NetImgui_Shared.h>
 
+#ifndef _WIN32
+#include <sys/socket.h>
+#include <netdb.h>
+#include <pwd.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#endif
+
 //=================================================================================================
 // WINDOWS GLFW
 // Note: This file currently only has support for Windows application
@@ -88,6 +96,20 @@ bool HAL_GetSocketInfo(NetImgui::Internal::Network::SocketInfo* pClientSocket, c
 			return true;
 		}
 	}
+#else
+	// On Linux/POSIX, SocketInfo starts with 'int mSocket' as first member
+	int* pFd = reinterpret_cast<int*>(pClientSocket);
+	sockaddr_storage socketAdr = {};
+	socklen_t sizeSocket = sizeof(socketAdr);
+	if( getsockname(*pFd, (sockaddr*)&socketAdr, &sizeSocket) == 0 )
+	{
+		char zPortBuffer[32];
+		if( getnameinfo((sockaddr*)&socketAdr, sizeSocket, pOutHostname, static_cast<socklen_t>(HostNameLen), zPortBuffer, sizeof(zPortBuffer), NI_NUMERICSERV) == 0 )
+		{
+			outPort = atoi(zPortBuffer);
+			return true;
+		}
+	}
 #endif
 	return false;
 }
@@ -120,7 +142,25 @@ const char* HAL_GetUserSettingFolder()
 	}
 	return sUserSettingFolder;
 #else
-	return nullptr;
+	static char sUserSettingFolder[1024] = {};
+	if( sUserSettingFolder[0] == 0 )
+	{
+		const char* home = getenv("HOME");
+		if( !home ){
+			struct passwd* pw = getpwuid(getuid());
+			home = pw ? pw->pw_dir : nullptr;
+		}
+		if( home ){
+			snprintf(sUserSettingFolder, sizeof(sUserSettingFolder), "%s/.config/netimgui", home);
+			struct stat st = {};
+			if( stat(sUserSettingFolder, &st) == 0 && S_ISDIR(st.st_mode) )
+				return sUserSettingFolder;
+			if( mkdir(sUserSettingFolder, 0755) == 0 )
+				return sUserSettingFolder;
+		}
+		sUserSettingFolder[0] = 0;
+	}
+	return sUserSettingFolder[0] ? sUserSettingFolder : nullptr;
 #endif
 }
 

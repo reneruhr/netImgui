@@ -12,7 +12,8 @@
 #include <fcntl.h>
 #include <netinet/tcp.h> // Required for TCP_NODELAY
 
-#include "NetImgui_CmdPackets.h" 
+#include "NetImgui_CmdPackets.h"
+#include <string>
 
 // NOTE: Removed static_assert(0) as requested changes are implemented below
 
